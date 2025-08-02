@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Profile Explorer</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Poppins for headings, Inter for body -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- Custom Fonts --- */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        h1, h2, h3, h4 {
+            font-family: 'Poppins', sans-serif;
+        }
+
+        /* --- Permanent Dark Mode Styles --- */
+        body {
+            /* Subtle gradient background */
+            background-color: #111827;
+            background-image: radial-gradient(circle at 1px 1px, #374151 1px, transparent 0);
+            background-size: 2rem 2rem;
+            color: #d1d5db;
+        }
+        .card {
+            background-color: #1f2937;
+            border: 1px solid #374151;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+        }
+        .input-field {
+            background-color: #111827;
+            border: 1px solid #374151;
+        }
+        .text-main { color: #f9fafb; }
+        .text-subtle { color: #9ca3af; }
+        .repo-card { background-color: #111827; border: 1px solid #374151; }
+        .stats-bg { background-color: #111827; }
+        .header-text { color: #f9fafb; }
+
+        /* Spinner animation */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            border-top-color: #a78bfa; /* Warmer purple color */
+            width: 40px;
+            height: 40px;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Staggered list animation */
+        @keyframes fade-in-stagger {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-stagger {
+            animation: fade-in-stagger 0.5s ease-out forwards;
+            opacity: 0;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-2xl mx-auto my-8">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold header-text">Dev Explorer</h1>
+            <p class="text-subtle mt-2">Who are we looking for today?</p>
+        </header>
+
+        <!-- Search Form -->
+        <form id="search-form" class="flex items-center gap-3 mb-8">
+            <input 
+                type="text" 
+                id="search-input"
+                placeholder="e.g., priya-gupta"
+                class="w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-200 input-field text-main"
+                required
+            >
+            <button 
+                type="submit"
+                class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-xl transition-transform active:scale-95"
+            >
+                Find
+            </button>
+        </form>
+
+        <!-- Main content area -->
+        <main id="main-content">
+            <div id="loader" class="hidden justify-center items-center py-8">
+                <div class="spinner"></div>
+            </div>
+            <div id="error-message" class="hidden text-center bg-red-500/10 border border-red-500/20 p-4 rounded-xl">
+                <h3 class="font-bold text-lg text-red-300">Hmm, can't find that user.</h3>
+                <p class="text-red-400">Maybe a typo? Let's try again.</p>
+            </div>
+            <div id="results-container"></div>
+        </main>
+    </div>
+
+    <script>
+        // --- DOM Element References ---
+        const searchForm = document.getElementById('search-form');
+        const searchInput = document.getElementById('search-input');
+        const loader = document.getElementById('loader');
+        const errorMessage = document.getElementById('error-message');
+        const resultsContainer = document.getElementById('results-container');
+
+        const API_URL = 'https://api.github.com/users/';
+        
+        // --- Event Listeners ---
+        searchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = searchInput.value.trim();
+            if (username) fetchAllData(username);
+        });
+        
+        // --- Core Functions ---
+        async function fetchAllData(username) {
+            loader.style.display = 'flex';
+            errorMessage.style.display = 'none';
+            resultsContainer.innerHTML = '';
+
+            try {
+                const [profileRes, reposRes] = await Promise.all([
+                    fetch(API_URL + username),
+                    fetch(`${API_URL}${username}/repos?sort=updated&per_page=100`)
+                ]);
+
+                if (!profileRes.ok) throw new Error('User not found');
+                
+                const profileData = await profileRes.json();
+                const reposData = reposRes.ok ? await reposRes.json() : [];
+
+                renderProfile(profileData);
+                renderStatsAndBadges(profileData, reposData);
+                renderRepos(reposData.slice(0, 10));
+
+            } catch (error) {
+                errorMessage.style.display = 'block';
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        function renderProfile(profileData) {
+            const { avatar_url, name, login, html_url, bio, public_repos, followers, following, location } = profileData;
+            const cardHTML = `
+                <div class="card rounded-2xl p-6 md:p-8 shadow-lg animate-stagger">
+                    <div class="flex flex-col md:flex-row items-center md:items-start gap-6 mb-6">
+                        <img src="${avatar_url}" alt="${name || login}'s avatar" class="w-28 h-28 rounded-full border-4" style="border-color: #4f46e5;">
+                        <div class="flex-1 text-center md:text-left">
+                            <div class="flex flex-col md:flex-row justify-between items-center">
+                                <div>
+                                    <h2 class="text-3xl font-bold text-main">${name || 'No Name Provided'}</h2>
+                                    <a href="${html_url}" target="_blank" class="text-lg text-purple-400 hover:underline">@${login}</a>
+                                </div>
+                                <button onclick="copyToClipboard('${html_url}', this)" class="bg-gray-700/50 hover:bg-gray-600/50 text-subtle py-1 px-3 rounded-lg text-sm transition-all mt-3 md:mt-0">Copy URL</button>
+                            </div>
+                            <p class="text-subtle mt-4">${bio || 'This user has no bio.'}</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-around stats-bg p-4 rounded-xl mb-6 text-center">
+                        <div><p class="text-2xl font-bold text-main">${public_repos}</p><p class="text-sm text-subtle">Repositories</p></div>
+                        <div><p class="text-2xl font-bold text-main">${followers}</p><p class="text-sm text-subtle">Followers</p></div>
+                        <div><p class="text-2xl font-bold text-main">${following}</p><p class="text-sm text-subtle">Following</p></div>
+                    </div>
+                    ${location ? `<div class="flex items-center justify-center md:justify-start gap-2 text-subtle">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path></svg>
+                        <span>${location}</span>
+                    </div>` : ''}
+                </div>
+            `;
+            resultsContainer.innerHTML += cardHTML;
+        }
+
+        function renderStatsAndBadges(profile, repos) {
+            const totalStars = repos.reduce((sum, repo) => sum + repo.stargazers_count, 0);
+            const avgStars = repos.length > 0 ? (totalStars / repos.length).toFixed(1) : 0;
+            const accountAgeInDays = Math.floor((new Date() - new Date(profile.created_at)) / (1000 * 60 * 60 * 24));
+            const accountAgeInYears = (accountAgeInDays / 365).toFixed(1);
+
+            const badges = [];
+            if (accountAgeInYears >= 5) badges.push({ icon: '🏆', text: 'GitHub Veteran', desc: `Joined over ${Math.floor(accountAgeInYears)} years ago` });
+            if (totalStars > 500) badges.push({ icon: '⭐', text: 'Star Collector', desc: `Earned over ${totalStars} stars` });
+            if (repos.find(repo => repo.stargazers_count > 100)) badges.push({ icon: '🔥', text: 'Hot Repository', desc: `Has a repo with over 100 stars` });
+            if (new Set(repos.map(r => r.language).filter(l => l)).size >= 5) badges.push({ icon: '🌍', text: 'Polyglot', desc: `Uses 5+ different languages` });
+
+            if (badges.length === 0 && repos.length === 0) return;
+
+            let statsHTML = `
+                <div class="card rounded-2xl p-6 shadow-lg animate-stagger mb-8" style="animation-delay: 100ms;">
+                    <h3 class="text-2xl font-bold mb-4 text-main">The Lowdown</h3>
+                    <div class="grid grid-cols-2 gap-4 text-center mb-6">
+                        <div class="stats-bg p-3 rounded-xl"><p class="text-2xl font-bold text-main">${avgStars}</p><p class="text-sm text-subtle">Avg. Stars</p></div>
+                        <div class="stats-bg p-3 rounded-xl"><p class="text-2xl font-bold text-main">${accountAgeInYears}</p><p class="text-sm text-subtle">Years on GitHub</p></div>
+                    </div>
+                    ${badges.length > 0 ? '<h4 class="text-xl font-bold mb-3 text-main">Achievements</h4>' : ''}
+                    <div class="space-y-3">
+            `;
+
+            badges.forEach((badge, index) => {
+                statsHTML += `
+                    <div class="flex items-center gap-4 repo-card rounded-xl p-3 animate-stagger" style="animation-delay: ${200 + index * 50}ms;">
+                        <span class="text-3xl">${badge.icon}</span>
+                        <div><p class="font-bold text-main">${badge.text}</p><p class="text-sm text-subtle">${badge.desc}</p></div>
+                    </div>
+                `;
+            });
+            statsHTML += `</div></div>`;
+            resultsContainer.innerHTML += statsHTML;
+        }
+
+        function renderRepos(repos) {
+            if (repos.length === 0) return;
+
+            let reposHTML = `<div class="animate-stagger" style="animation-delay: 150ms;"><h3 class="text-2xl font-bold mb-4 text-main">Recent Repositories</h3><div class="space-y-3">`;
+            repos.forEach((repo, index) => {
+                reposHTML += `
+                    <div class="repo-card rounded-xl p-4 transition-transform hover:scale-[1.02] animate-stagger" style="animation-delay: ${300 + index * 50}ms;">
+                        <a href="${repo.html_url}" target="_blank" class="text-lg font-bold text-purple-400 hover:underline">${repo.name}</a>
+                        <p class="text-subtle text-sm my-1">${repo.description || 'No description.'}</p>
+                        <div class="flex items-center gap-4 mt-2 text-subtle text-xs">
+                            ${repo.language ? `<span><span style="color: #a78bfa">●</span> ${repo.language}</span>` : ''}
+                            <span>⭐ ${repo.stargazers_count}</span>
+                            <span>${repo.forks_count} Forks</span>
+                        </div>
+                    </div>
+                `;
+            });
+            reposHTML += '</div></div>';
+            resultsContainer.innerHTML += reposHTML;
+        }
+        
+        function copyToClipboard(text, element) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = element.innerHTML;
+                element.innerHTML = 'Copied!';
+                element.style.backgroundColor = '#22c55e';
+                setTimeout(() => {
+                    element.innerHTML = originalText;
+                    element.style.backgroundColor = '';
+                }, 2000);
+            });
+        }
+        
+        // --- Initial Load ---
+        window.onload = () => {
+            fetchAllData('gauravghai');
+            searchInput.value = 'gauravghai';
+        };
+    </script>
+</body>
+</html>
