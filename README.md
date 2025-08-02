@@ -6,9 +6,7 @@ A simple web app to search for GitHub users and see their profile stats, achieve
 
 ### Live Demo
 
-https://YOUR_USERNAME.github.io/dev-explorer/
-
-(Remember to replace this with your actual GitHub Pages URL)
+https://0jasbansal.github.io/Github-Profile_viewer/
 
 ---
 
